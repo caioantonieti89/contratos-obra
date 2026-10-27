@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gestão de Contratos da Obra</title>
+<style>
+:root{--bg:#f2f6fc;--card:#fff;--ink:#0b2447;--mut:#5b6b85;--pri:#0a4ea3;--pri2:#1f7ae0;--line:#dbe5f3;--soft:#e8f1fd;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a1730;--card:#10234a;--ink:#eaf1ff;--mut:#9db2d6;--pri:#5aa2ff;--pri2:#8cc0ff;--line:#22407a;--soft:#17306a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0a1730;--card:#10234a;--ink:#eaf1ff;--mut:#9db2d6;--pri:#5aa2ff;--pri2:#8cc0ff;--line:#22407a;--soft:#17306a;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px}
+header{background:linear-gradient(135deg,#0a3d8f,#1f7ae0);color:#fff;padding:18px 16px 0}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:20px;margin:0 0 2px}.sub{opacity:.85;font-size:13px;margin:0 0 12px}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.imp{background:#fff;color:#0a4ea3;border:0;border-radius:8px;padding:8px 12px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
+nav{display:flex;gap:4px;overflow-x:auto}
+nav button{flex:1;min-width:max-content;background:transparent;color:#fff;border:0;border-bottom:3px solid transparent;padding:10px 12px;font-size:14px;font-weight:600;cursor:pointer;opacity:.8}
+nav button.on{opacity:1;border-color:#fff}
+main{padding:14px 12px 40px}
+.pane{display:none}.pane.on{display:block}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--pri2);border-radius:10px;padding:12px}
+.kpi small{color:var(--mut);font-size:12px;display:block}.kpi b{font-size:18px;color:var(--pri);word-break:break-word}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.card h3{margin:0 0 8px;font-size:14px;color:var(--pri)}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px}
+.cv{position:relative;height:280px}
+.flt{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.flt input,.flt select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px}
+.flt .full{grid-column:1/-1}
+.list{display:grid;grid-template-columns:1fr;gap:10px}
+.it{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.it h4{margin:0 0 6px;font-size:14px;line-height:1.3}
+.it .v{font-size:19px;font-weight:700;color:var(--pri)}
+.it .f{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--mut);padding-top:4px;border-top:1px dashed var(--line);margin-top:4px}
+.it .f span:last-child{color:var(--ink);text-align:right}
+.bar{height:6px;background:var(--soft);border-radius:4px;margin:6px 0}.bar i{display:block;height:100%;background:var(--pri2);border-radius:4px}
+.empty{text-align:center;color:var(--mut);padding:28px 12px}
+.cnt{color:var(--mut);font-size:13px;margin:0 0 8px}
+@media(min-width:720px){.kpis{grid-template-columns:repeat(4,1fr)}.grid2{grid-template-columns:1fr 1fr}.list{grid-template-columns:repeat(3,1fr)}.flt{grid-template-columns:repeat(4,1fr)}.flt .full{grid-column:auto}h1{font-size:24px}}
+</style></head><body>
+<header><div class="wrap">
+<div class="top"><div><h1>Gestão de Contratos da Obra</h1><p class="sub" id="sub">Orçado x realizado, contratos de execução e serviços mensais</p></div>
+<button class="imp" id="rf">Atualizar</button></div>
+<nav id="nav"><button data-t="res" class="on">Resumo Geral</button><button data-t="exe">Execução de Obras</button><button data-t="svc">Serviços Mensais</button></nav>
+</div></header>
+<main><div class="wrap">
+<section class="pane on" id="p-res"></section>
+<section class="pane" id="p-exe"></section>
+<section class="pane" id="p-svc"></section>
+</div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const BRL=v=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const PAL=['#0a3d8f','#1f7ae0','#5aa2ff','#8cc0ff','#0b6bcb','#3b5b92','#a9cdfa','#14509e'];
+const num=v=>{if(typeof v==='number')return v;if(v==null)return NaN;let s=String(v).replace(/R\$|\s|%/g,'');if(!/\d/.test(s))return NaN;if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');else if((s.match(/\./g)||[]).length>1)s=s.replace(/\./g,'');return /^-?\d+(\.\d+)?$/.test(s)?Number(s):NaN};
+// Dados lidos da aba "Prestação de Serviço Mensal" da planilha
+const SVC0=[["ELEVADORES CREMALHEIRA - ALUGUEL","CANTEIRO",22000],["ELEVADORES CREMALHEIRA - MANUTENÇÃO","CANTEIRO",7000],["OPERADOR DE ELEVADOR","CANTEIRO",20000],["CONSULTORIA INSTALAÇÕES ELÉTRICAS","CANTEIRO",8500],["CATRACA","CANTEIRO",700],["LIMPEZA DO CANTEIRO","CANTEIRO",7357.85],["PORTARIA 24 HR","CANTEIRO",27160.52],["TÉCNICO DE SEGURANÇA","CANTEIRO",6700]];
+const D={svc:{cols:["CENTRO DE CUSTO","DISCIPLINA","CUSTO MENSAL"],rows:SVC0.map(r=>({"CENTRO DE CUSTO":r[0],"DISCIPLINA":r[1],"CUSTO MENSAL":r[2]}))},exe:{cols:[],rows:[]}};
+const F={exe:{q:'',sel:{},min:0},svc:{q:'',sel:{},min:0}};let CH={};
+const money=c=>!/%|perc|avan|andam|qtd|quant|^n[ºo°]|prazo|dias/i.test(c);
+const fmt=(c,v)=>money(c)?BRL(v):v.toLocaleString('pt-BR',{maximumFractionDigits:2})+(/%|perc|avan|andam/i.test(c)&&v<=1?'':'');
+function meta(k){const d=D[k];const nc=d.cols.filter(c=>d.rows.some(r=>r[c]!==''&&r[c]!=null)&&d.rows.every(r=>r[c]===''||r[c]==null||!isNaN(num(r[c]))));return{nc,tc:d.cols.filter(c=>!nc.includes(c))}}
+function mk(id,type,data,opt){if(CH[id])CH[id].destroy();const el=document.getElementById(id);if(!el)return;Chart.defaults.color=getComputedStyle(document.documentElement).getPropertyValue('--mut').trim()||'#5b6b85';CH[id]=new Chart(el,{type,data,options:Object.assign({responsive:true,maintainAspectRatio:false},opt||{})})}
+const short=s=>String(s).length>26?String(s).slice(0,24)+'…':s;
+function group(rows,lc,vc,top){const m={};rows.forEach(r=>{const k=r[lc]||'—';m[k]=(m[k]||0)+num(r[vc])});let a=Object.entries(m).sort((x,y)=>y[1]-x[1]);if(top&&a.length>top){const o=a.slice(top).reduce((s,x)=>s+x[1],0);a=a.slice(0,top).concat([['Outros',o]])}return a}
+function renderDS(k,title){
+ const p=document.getElementById('p-'+k),d=D[k];
+ if(!d.rows.length){p.innerHTML='<div class="card empty"><b>Sem dados nesta aba ainda.</b><br>Use <b>Importar planilha</b> (botão no topo) e selecione o arquivo .xlsx completo para carregar '+title+'.</div>';return}
+ const{nc,tc}=meta(k),f=F[k],lc=tc[0]||d.cols[0],vc=nc[0];
+ const sels=tc.filter(c=>{const s=new Set(d.rows.map(r=>r[c]));return s.size>1&&s.size<=30}).slice(0,3);
+ if(!p.dataset.ok){p.dataset.ok=1;
+  p.innerHTML=`<div class="card"><h3>Filtros</h3><div class="flt"><input class="full" id="q-${k}" placeholder="Buscar…" type="search">${sels.map(c=>`<select id="s-${k}-${c}"><option value="">${c}: todos</option>${[...new Set(d.rows.map(r=>r[c]))].sort().map(v=>`<option>${v}</option>`).join('')}</select>`).join('')}${vc?`<input id="m-${k}" type="number" min="0" placeholder="${vc} mínimo">`:''}</div></div><div id="o-${k}"></div>`;
+  p.querySelector('#q-'+k).oninput=e=>{f.q=e.target.value.toLowerCase();body(k)};
+  sels.forEach(c=>p.querySelector(`[id="s-${k}-${c}"]`).onchange=e=>{f.sel[c]=e.target.value;body(k)});
+  const m=p.querySelector('#m-'+k);if(m)m.oninput=e=>{f.min=Number(e.target.value)||0;body(k)}}
+ body(k)}
+function body(k){
+ const d=D[k],{nc,tc}=meta(k),f=F[k],lc=tc[0]||d.cols[0],vc=nc[0];
+ const rows=d.rows.filter(r=>(!f.q||Object.values(r).join(' ').toLowerCase().includes(f.q))&&Object.entries(f.sel).every(([c,v])=>!v||r[c]===v)&&(!vc||!f.min||num(r[vc])>=f.min));
+ const o=document.getElementById('o-'+k);
+ if(!rows.length){o.innerHTML='<div class="card empty">Nenhum item encontrado com esses filtros.</div>';return}
+ const sum=c=>rows.reduce((s,r)=>s+(num(r[c])||0),0);
+ let kp=[['Itens',rows.length]];nc.slice(0,2).forEach(c=>kp.push([c+' (soma)',fmt(c,sum(c))]));
+ if(vc){const t=sum(vc);kp.push(k==='svc'?['Projeção 12 meses',BRL(t*12)]:['Média por item',fmt(vc,t/rows.length)])}
+ const mx=vc?Math.max(...rows.map(r=>num(r[vc])||0)):1;
+ o.innerHTML=`<div class="kpis">${kp.slice(0,4).map(x=>`<div class="kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join('')}</div>
+ ${vc?`<div class="grid2"><div class="card"><h3>${vc} por ${lc}</h3><div class="cv"><canvas id="c1-${k}"></canvas></div></div><div class="card"><h3>Participação (%)</h3><div class="cv"><canvas id="c2-${k}"></canvas></div></div></div>`:''}
+ <p class="cnt">${rows.length} de ${d.rows.length} itens</p>
+ <div class="list">${rows.slice().sort((a,b)=>(num(b[vc])||0)-(num(a[vc])||0)).map(r=>`<div class="it"><h4>${r[lc]||'—'}</h4>${vc?`<div class="v">${fmt(vc,num(r[vc])||0)}</div><div class="bar"><i style="width:${(num(r[vc])||0)/mx*100}%"></i></div>`:''}${d.cols.filter(c=>c!==lc&&c!==vc).map(c=>{const n=nc.includes(c);return `<div class="f"><span>${c}</span><span>${r[c]===''||r[c]==null?'—':n?fmt(c,num(r[c])):r[c]}</span></div>`}).join('')}</div>`).join('')}</div>`;
+ if(vc){const g=group(rows,lc,vc,12);mk('c1-'+k,'bar',{labels:g.map(x=>short(x[0])),datasets:[{data:g.map(x=>x[1]),backgroundColor:'#1f7ae0',borderRadius:4}]},{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>v>=1000?v/1000+'k':v}}}});
+  const g2=group(rows,lc,vc,6);mk('c2-'+k,'doughnut',{labels:g2.map(x=>short(x[0])),datasets:[{data:g2.map(x=>x[1]),backgroundColor:PAL,borderWidth:0}]},{plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11}}},tooltip:{callbacks:{label:c=>' '+BRL(c.parsed)}}}})}}
+
+let EXE=[{"d": "ESTRUTURA", "c": "CT M0500/24", "e": "MTECH PREMOLDADOS PROTENDIDOS LTDA", "o": "ESTRUTURA PRE MOLDADA", "v": 41800000.0, "f": 40297944.09, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "FUNDAÇÕES", "c": "002/02-2025", "e": "REGINALDO MENDES EPP", "o": "CORTINA DE FUNDAÇÃO", "v": 2231418.94, "f": 2188802.58, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "PAISAGISMO", "c": "", "e": "SOLUART", "o": "ESCULTURAS", "v": 1150000.0, "f": 843326.0, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "ESTRUTURA", "c": "001/06-2025", "e": "REGINALDO MENDES EPP", "o": "VIGAS DE COROAMENTO - SEGUNDA ETAPA", "v": 516277.91, "f": 369615.66, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "FUNDAÇÕES", "c": "001/08-2025", "e": "EMPREITEIRA LAP CONSTRUCOES LTDA", "o": "TUBULÕES E BLOCOS DE FUNDAÇÃO", "v": 3446797.99, "f": 3287105.0, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "ELEVADORES", "c": "", "e": "TKE", "o": "ELEVADORES", "v": 3500000.0, "f": 1950000.0, "k": [[150000.0, 150000.0], [0, 0], [0, 0], [0, 0]]}, {"d": "PAREDES E PAINEIS", "c": "001/10-2025", "e": "DRYSTYLE", "o": "PAREDES E FORRO DE GESSO", "v": 6800000.0, "f": 1836906.25, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "ESTRUTURA", "c": "002/02/2026", "e": "REGINALDO MENDES EPP", "o": "CAPEAMENTO", "v": 8044518.58, "f": 3514305.91, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "ESTRUTURA", "c": "001/02/2026", "e": "REGINALDO MENDES EPP", "o": "PROTEÇÕES COLETIVAS", "v": 629140.37, "f": 382706.11, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "CAIXILHOS", "c": "003/02-2026", "e": "WALLBOND", "o": "CAIXILHOS", "v": 19529335.61, "f": 10944630.11, "k": [[1030883.13, 918370.14], [0, 0], [0, 0], [0, 0]]}, {"d": "VIDROS", "c": "001/03-2026", "e": "VIDROBENS", "o": "VIDROS INCOLORES E NP 41", "v": 1730000.0, "f": 803279.95, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "INSTALAÇÕES ELÉTRICAS", "c": "002/04-2026", "e": "SERRP", "o": "ENTRADE DE ENERGIA", "v": 1125000.0, "f": 947370.45, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "PAREDES E PAINEIS", "c": "003/04-2026", "e": "REGINALDO MENDES EPP", "o": "ALVENARIA DO POÇO DOS ELEVADORES", "v": 1028869.21, "f": 478176.02, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "INSTALAÇÕES HIDRÁULICAS", "c": "001/05-2026", "e": "ARTICO & ARTICO", "o": "INSTALAÇÕES HIDRAULICAS (ÁGUA, ESGOTO E PLUVIAIS)", "v": 5000000.0, "f": 1698538.64, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "INSTALAÇÕES HIDRÁULICAS", "c": "0002/05-2026", "e": "ARTICO & ARTICO", "o": "INSTALAÇÕES DE PREVENÇÃO E COMBATE À INCÊNDIO", "v": 7500000.0, "f": 3126495.06, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "AUTOMAÇÃO E SISTEMAS", "c": "003/05-2026", "e": "VEGASCOM", "o": "AUTOMAÇÃO E SISTEMAS", "v": 1997337.33, "f": 1697876.73, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "VIDROS", "c": "001/06-2026", "e": "VIDROBENS", "o": "VIDROS VERDES", "v": 1007335.22, "f": 302200.57, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "INSTALAÇÕES ELÉTRICAS", "c": "002/06-2026", "e": "MA LUZ", "o": "INSTALAÇÕES ELÉTRICAS BAIXA TENSÃO", "v": 13197155.3, "f": 1338415.05, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "INSTALAÇÕES ELÉTRICAS", "c": "003-06-2026", "e": "MA LUZ", "o": "QUADROS ELÉTRICOS", "v": 900000.0, "f": 0.0, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "PAREDES E PAINEIS", "c": "001/07-2026", "e": "REGINALDO MENDES EPP", "o": "ALVENARIA DAS TORRES", "v": 1781817.03, "f": 454384.18, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "CAIXILHOS", "c": "001/08-2026", "e": "PAULO CESAR LEONARDI", "o": "BRISES DA FACHADA", "v": 4800000.0, "f": 873923.55, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "ESTRUTURA METÁLICA", "c": "", "e": "JBS SERRALHERIA", "o": "GRELHAS SUBSOLO, GUARDA CORPO, GANCHO DOS ELEVADORES E VIGAS", "v": 900326.2, "f": 562292.6, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "PISOS", "c": "003/09-2026", "e": "REGINALDO MENDES EPP", "o": "REGULARIZAÇÃO DE PISO DAS TORRES", "v": 1330106.79, "f": 31007.4, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "IMPERMEABILIZAÇÃO", "c": "004/09-2026", "e": "REGINALDO MENDES EPP", "o": "REGULARIZAÇÃO DE PISO ESTACIONAMENTO", "v": 1499616.77, "f": 58654.29, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}, {"d": "IMPERMEABILIZAÇÃO", "c": "001/10-2026", "e": "ESPATEC", "o": "IMPERMEABILIZAÇÃO SUBSOLO", "v": 3000000.0, "f": 449405.97, "k": [[0, 0], [0, 0], [0, 0], [0, 0]]}];let RES=[235620775.42, 78550244.84, 154849655.54, 2220875.04];let MES=['Out/26','Nov/26','Dez/26','Jan/27'];
+const mi=v=>'R$ '+(v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' mi';
+const pc=v=>(v*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+const sumb=(a,k)=>a.reduce((s,r)=>s+r[k],0);
+const kpi=(t,v,s)=>`<div class="kpi"><small>${t}</small><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
+const FE={q:'',d:'',e:'',s:''};
+const stat=r=>{const p=r.v?r.f/r.v:0;return p===0?'Sem faturamento':p<.5?'Até 50%':p<.95?'De 50% a 95%':'Acima de 95%'};
+function renderRes(){
+ const p=document.getElementById('p-res'),sm=meta('svc'),sv=sm.nc[0],lc=sm.tc[0],tot=D.svc.rows.reduce((a,r)=>a+num(r[sv]),0);
+ const g=group(D.svc.rows,lc,sv),top3=g.slice(0,3).reduce((a,x)=>a+x[1],0),[orc,inc,ain,sal]=RES,C=sumb(EXE,'v'),Fa=sumb(EXE,'f');
+ const gd={};EXE.forEach(r=>{gd[r.d]=gd[r.d]||[0,0];gd[r.d][0]+=r.v;gd[r.d][1]+=r.f});const gl=Object.entries(gd).sort((a,b)=>b[1][0]-a[1][0]).slice(0,10);
+ p.innerHTML=`<div class="card"><h3>Orçado x realizado da obra</h3><div class="kpis" style="margin:0">${kpi('Orçamento total',mi(orc))}${kpi('Custo incorrido',mi(inc),pc(inc/orc)+' do orçamento')}${kpi('Custo a incorrer',mi(ain),pc(ain/orc)+' do orçamento')}${kpi('Saldo orçado',mi(sal),pc(sal/orc)+' do orçamento')}</div></div>
+ <div class="grid2"><div class="card"><h3>Composição do orçamento</h3><div class="cv"><canvas id="r0"></canvas></div></div>
+ <div class="card"><h3>Contratado x faturado por disciplina</h3><div class="cv"><canvas id="r3"></canvas></div></div></div>
+ <div class="card"><h3>Contratos</h3><div class="kpis" style="margin:0">${kpi('Contratos de execução',EXE.length)}${kpi('Valor contratado',mi(C))}${kpi('Faturado acumulado',mi(Fa),pc(Fa/C)+' do contratado')}${kpi('Serviços mensais',BRL(tot),'Projeção 12 meses: '+mi(tot*12))}</div></div>
+ <div class="card"><h3>Serviços mensais: curva ABC (3 maiores = ${(top3/tot*100).toFixed(0)}%)</h3><div class="cv"><canvas id="r1"></canvas></div></div>`;
+ mk('r0','doughnut',{labels:['Incorrido','A incorrer','Saldo orçado'],datasets:[{data:[inc,ain,sal],backgroundColor:['#0a3d8f','#5aa2ff','#a9cdfa'],borderWidth:0}]},{plugins:{legend:{position:'bottom',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>' '+mi(c.parsed)}}}});
+ mk('r3','bar',{labels:gl.map(x=>short(x[0])),datasets:[{label:'Contratado',data:gl.map(x=>x[1][0]),backgroundColor:'#5aa2ff',borderRadius:4},{label:'Faturado',data:gl.map(x=>x[1][1]),backgroundColor:'#0a3d8f',borderRadius:4}]},{indexAxis:'y',plugins:{legend:{position:'bottom',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+mi(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>v/1e6+' mi'}}}});
+ let c=0;mk('r1','bar',{labels:g.map(x=>short(x[0])),datasets:[{type:'line',label:'% acumulado',data:g.map(x=>+((c+=x[1])/tot*100).toFixed(1)),borderColor:'#0a3d8f',backgroundColor:'#0a3d8f',yAxisID:'y2',tension:.2},{label:'Custo mensal',data:g.map(x=>x[1]),backgroundColor:'#5aa2ff',borderRadius:4}]},{plugins:{legend:{position:'bottom',labels:{boxWidth:10}}},scales:{x:{ticks:{display:false}},y2:{position:'right',min:0,max:100,grid:{display:false}}}})}
+function renderExe(){
+ const p=document.getElementById('p-exe'),opt=k=>[...new Set(EXE.map(r=>r[k]))].sort().map(v=>`<option>${v}</option>`).join('');
+ if(!p.dataset.ok){p.dataset.ok=1;
+  p.innerHTML=`<div class="card"><h3>Filtros</h3><div class="flt"><input class="full" id="eq" type="search" placeholder="Buscar objeto, empresa ou contrato…"><select id="ed"><option value="">Disciplina: todas</option>${opt('d')}</select><select id="ee"><option value="">Empresa: todas</option>${opt('e')}</select><select id="es"><option value="">Avanço financeiro: todos</option><option>Sem faturamento</option><option>Até 50%</option><option>De 50% a 95%</option><option>Acima de 95%</option></select></div></div><div id="eo"></div>`;
+  [['eq','q','oninput'],['ed','d','onchange'],['ee','e','onchange'],['es','s','onchange']].forEach(([id,k,ev])=>p.querySelector('#'+id)[ev]=e=>{FE[k]=k==='q'?e.target.value.toLowerCase():e.target.value;bodyExe()})}
+ bodyExe()}
+function bodyExe(){
+ const R=EXE.filter(r=>(!FE.q||(r.o+r.e+r.c+r.d).toLowerCase().includes(FE.q))&&(!FE.d||r.d===FE.d)&&(!FE.e||r.e===FE.e)&&(!FE.s||stat(r)===FE.s)),o=document.getElementById('eo');
+ if(!R.length){o.innerHTML='<div class="card empty">Nenhum contrato encontrado com esses filtros.</div>';return}
+ const C=sumb(R,'v'),Fa=sumb(R,'f'),ck=MES.map((m,i)=>[R.reduce((s,r)=>s+r.k[i][0],0),R.reduce((s,r)=>s+r.k[i][1],0)]),hasK=ck.some(x=>x[0]||x[1]);
+ o.innerHTML=`<div class="kpis">${kpi('Contratos',R.length)}${kpi('Contratado',mi(C))}${kpi('Faturado acumulado',mi(Fa),pc(C?Fa/C:0)+' do contratado')}${kpi('Saldo a faturar',mi(C-Fa))}</div>
+ <div class="grid2"><div class="card"><h3>Contratado x faturado por empresa</h3><div class="cv"><canvas id="e1"></canvas></div></div><div class="card"><h3>Avanço financeiro por contrato (%)</h3><div class="cv"><canvas id="e2"></canvas></div></div></div>
+ ${hasK?`<div class="card"><h3>Cronograma financeiro: previsto x realizado no mês</h3><div class="cv" style="height:220px"><canvas id="e3"></canvas></div></div>`:''}
+ <p class="cnt">${R.length} de ${EXE.length} contratos</p>
+ <div class="list">${R.slice().sort((a,b)=>b.v-a.v).map(r=>{const q=r.v?r.f/r.v:0;return `<div class="it"><h4>${r.o}</h4><small style="color:var(--mut)">${r.e}</small><div class="v">${mi(r.v)}</div><div class="bar"><i style="width:${Math.min(q*100,100)}%"></i></div><div class="f"><span>Faturado (${pc(q)})</span><span>${BRL(r.f)}</span></div><div class="f"><span>Saldo a faturar</span><span>${BRL(r.v-r.f)}</span></div><div class="f"><span>Disciplina</span><span>${r.d}</span></div><div class="f"><span>Contrato</span><span>${r.c||'—'}</span></div>${r.k.map((x,i)=>x[0]||x[1]?`<div class="f"><span>${MES[i]}: previsto / realizado</span><span>${BRL(x[0])} / ${BRL(x[1])}</span></div>`:'').join('')}</div>`}).join('')}</div>`;
+ const ge={};R.forEach(r=>{ge[r.e]=ge[r.e]||[0,0];ge[r.e][0]+=r.v;ge[r.e][1]+=r.f});const gl=Object.entries(ge).sort((a,b)=>b[1][0]-a[1][0]).slice(0,10);
+ mk('e1','bar',{labels:gl.map(x=>short(x[0])),datasets:[{label:'Contratado',data:gl.map(x=>x[1][0]),backgroundColor:'#5aa2ff',borderRadius:4},{label:'Faturado',data:gl.map(x=>x[1][1]),backgroundColor:'#0a3d8f',borderRadius:4}]},{indexAxis:'y',plugins:{legend:{position:'bottom',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+mi(c.parsed.x)}}},scales:{x:{ticks:{callback:v=>v/1e6+' mi'}}}});
+ const pr=R.slice().sort((a,b)=>b.v-a.v).slice(0,12);
+ mk('e2','bar',{labels:pr.map(r=>short(r.o)),datasets:[{data:pr.map(r=>+(r.f/r.v*100).toFixed(1)),backgroundColor:'#1f7ae0',borderRadius:4}]},{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{max:100,ticks:{callback:v=>v+'%'}}}});
+ if(hasK)mk('e3','bar',{labels:MES,datasets:[{label:'Previsto',data:ck.map(x=>x[0]),backgroundColor:'#a9cdfa',borderRadius:4},{label:'Realizado',data:ck.map(x=>x[1]),backgroundColor:'#0a3d8f',borderRadius:4}]},{plugins:{legend:{position:'bottom',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+BRL(c.parsed.y)}}}})}
+function all(){['svc','exe'].forEach(k=>delete document.getElementById('p-'+k).dataset.ok);F.svc={q:'',sel:{},min:0};Object.assign(FE,{q:'',d:'',e:'',s:''});renderRes();renderExe();renderDS('svc','os serviços mensais')}
+const SID='1B8pQjagCLiHI5USXBMGhgMEEaJ22IFc8FNvjs-i_yWc',MN=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const csv=t=>{const R=[];let r=[],c='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===','){r.push(c);c=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;r.push(c);R.push(r);r=[];c=''}else c+=ch}if(c||r.length){r.push(c);R.push(r)}return R};
+const tab=async n=>{const r=await fetch('https://docs.google.com/spreadsheets/d/'+SID+'/gviz/tq?tqx=out:csv&headers=0&sheet='+encodeURIComponent(n));if(!r.ok)throw new Error(n);return csv(await r.text())};
+const lbl=(t,i)=>{const m=String(t||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(!m)return t||'Mês '+(i+1);let mo=+m[2];if(mo>12)mo=+m[1];return MN[mo-1]+'/'+m[3].slice(2)};
+async function load(){
+ const sub=document.getElementById('sub');
+ try{const[a,b,c]=await Promise.all([tab('CONTRATOS PRESTAÇÃO DE SERVIÇO'),tab('CONTRATOS DE EXECUÇÃO DE OBRAS'),tab('RESUMO GERAL')]);
+  const hi=a.findIndex(r=>/centro de custo/i.test(r[0]));
+  const rows=a.slice(hi+1).filter(r=>r[0]&&r[0].trim()&&!isNaN(num(r[2]))).map(r=>({"CENTRO DE CUSTO":r[0].trim(),"DISCIPLINA":r[1],"CUSTO MENSAL":num(r[2])}));
+  const eh=b.findIndex(r=>r.some(x=>/empresa contratada/i.test(x))),H=b[eh].map(x=>x.trim().toUpperCase()),ix=n=>H.findIndex(x=>x.includes(n));
+  const pv=H.map((x,i)=>x==='PREVISTO'?i:-1).filter(i=>i>=0),ml=pv.map((p,i)=>lbl(b[eh-1]&&b[eh-1][p],i));
+  const ex=b.slice(eh+1).filter(r=>(r[ix('EMPRESA')]||'').trim()).map(r=>({d:r[ix('DISCIPLINA')],c:r[ix('NÚMERO')]||'',e:r[ix('EMPRESA')].trim(),o:r[ix('OBJETO')],v:num(r[ix('VALOR CONTRATADO')])||0,f:num(r[ix('FATURADO')])||0,k:pv.map(p=>[num(r[p])||0,num(r[p+1])||0])}));
+  const rs=c.filter(r=>/^\((\+|-|=)\)$/.test((r[3]||'').trim())).map(r=>num(r[4]));
+  if(!rows.length||!ex.length||rs.length<4||rs.some(isNaN))throw new Error('formato');
+  D.svc={cols:D.svc.cols,rows};EXE=ex;RES=rs;MES=ml;all();
+  sub.textContent='Dados da planilha · atualizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}
+ catch(e){sub.textContent='Sem conexão com a planilha · exibindo últimos dados salvos'}}
+document.getElementById('rf').onclick=load;
+document.getElementById('nav').onclick=e=>{const t=e.target.dataset.t;if(!t)return;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b===e.target));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+t));window.scrollTo(0,0)};
+all();load();setInterval(load,300000);
+</script></body></html>
