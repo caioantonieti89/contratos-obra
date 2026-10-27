@@ -160,14 +160,41 @@ const SID='1B8pQjagCLiHI5USXBMGhgMEEaJ22IFc8FNvjs-i_yWc',MN=['jan','fev','mar','
 const csv=t=>{const R=[];let r=[],c='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}else if(ch=='"')q=true;else if(ch===','){r.push(c);c='';}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;if(c.length||r.length){R.push([...r,c]);r=[];c='';}}else c+=ch}if(c.length||r.length)R.push([...r,c]);return R.filter(row=>row.some(cell=>cell!==''));};
 const tab=async n=>{const r=await fetch('https://docs.google.com/spreadsheets/d/'+SID+'/gviz/tq?tqx=out:csv&headers=0&sheet='+encodeURIComponent(n));if(!r.ok)throw new Error(n);return csv(await r.text());};
 const lbl=(t,i)=>{const m=String(t||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(!m)return t||'Mês '+(i+1);let mo=+m[2];if(mo>12)mo=+m[1];return MN[mo-1]+'/'+m[3].slice(2)};
+const normalizeHeader = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,' ').trim().toUpperCase();
+const findHeaderIndex = (headers, aliases) => {
+  const heads = headers.map(normalizeHeader);
+  for (const alias of aliases) {
+    const key = normalizeHeader(alias);
+    const idx = heads.findIndex(h => h.includes(key));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+};
 async function load(){
   const sub=document.getElementById('sub');
   try{const[a,b,c]=await Promise.all([tab('CONTRATOS PRESTAÇÃO DE SERVIÇO'),tab('CONTRATOS DE EXECUÇÃO DE OBRAS'),tab('RESUMO GERAL')]);
    const hi=a.findIndex(r=>/centro de custo/i.test(r[0]));
    const rows=a.slice(hi+1).filter(r=>r[0]&&r[0].trim()&&!isNaN(num(r[2]))).map(r=>({"CENTRO DE CUSTO":r[0].trim(),"DISCIPLINA":r[1],"CUSTO MENSAL":num(r[2])}));
-   const eh=b.findIndex(r=>r.some(x=>/empresa contratada/i.test(x))),H=b[eh].map(x=>x.trim().toUpperCase()),ix=n=>H.findIndex(x=>x.includes(n));
-   const pv=H.map((x,i)=>x==='PREVISTO'?i:-1).filter(i=>i>=0),ml=pv.map((p,i)=>lbl(b[eh-1]&&b[eh-1][p],i));
-   const ex=b.slice(eh+1).filter(r=>(r[ix('EMPRESA')]||'').trim()).map(r=>({d:r[ix('DISCIPLINA')],c:r[ix('NÚMERO')]||'',e:r[ix('EMPRESA')].trim(),o:r[ix('OBJETO')],v:num(r[ix('VALOR CONTRATADO')]),f:num(r[ix('FATURADO')]),k:((r[ix('PREVISTO')]||'').trim()&&Array.isArray(r)&&r.length>Math.max(ix('PREVISTO'),ix('REALIZADO')))?[[num(r[ix('PREVISTO')]),num(r[ix('REALIZADO')])]]:[]}))
+   const eh=b.findIndex(r=>r.some(x=>/empresa contratada/i.test(x) || /empresa/i.test(x))),H=b[eh].map(x=>String(x||'').trim());
+   if (eh < 0) throw new Error('Cabecalho da planilha de execução não encontrado');
+   const idx = {
+     empresa: findHeaderIndex(H,['EMPRESA CONTRATADA','EMPRESA','CONTRATADA','NOME EMPRESA']),
+     disciplina: findHeaderIndex(H,['DISCIPLINA','DISCIPLINA DE EXECUÇÃO']),
+     numero: findHeaderIndex(H,['NUMERO','NÚMERO','NRO','NUMERO CONTRATO','CONTRATO']),
+     objeto: findHeaderIndex(H,['OBJETO','DESCRICAO OBJETO','DESCRIÇÃO DO OBJETO']),
+     valorContratado: findHeaderIndex(H,['VALOR CONTRATADO','CONTRATADO','VALOR ORCADO','VALOR TOTAL CONTRATADO']),
+     valorFaturado: findHeaderIndex(H,['VALOR FATURADO','VALOR FATURADO ACUMULADO','FATURADO','FATURADO ACUMULADO']),
+     previsto: findHeaderIndex(H,['PREVISTO','VALOR PREVISTO','PREVISTO ACUMULADO'])
+   };
+   const ex=b.slice(eh+1).filter(r=>{const empresa = r[idx.empresa] || ''; return String(empresa).trim() !== '';}).map(r=>({
+     d: String(r[idx.disciplina] || '').trim(),
+     c: String(r[idx.numero] || '').trim(),
+     e: String(r[idx.empresa] || '').trim(),
+     o: String(r[idx.objeto] || '').trim(),
+     v: num(r[idx.valorContratado]),
+     f: num(r[idx.valorFaturado]),
+     k: [[0,0],[0,0],[0,0],[0,0]]
+   }));
    const rs=c.filter(r=>/^(?:\(|\[)?(?:\+|-|=)(?:\)|\])?$/.test((r[3]||'').trim())).map(r=>num(r[4]));
    if(!rows.length||!ex.length||rs.length<4||rs.some(isNaN))throw new Error('formato');
    D.svc={cols:D.svc.cols,rows};EXE=ex;RES=rs;MES=ml;all();
