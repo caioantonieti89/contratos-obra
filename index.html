@@ -130,7 +130,7 @@ function renderRes(){
   <div class="card"><h3>Contratado x faturado por disciplina</h3><div class="cv"><canvas id="r3"></canvas></div></div></div>
   <div class="card"><h3>Contratos</h3><div class="kpis" style="margin:0">${kpi('Contratos de execução',EXE.length)}${kpi('Valor contratado',mi(C))}${kpi('Faturado acumulado',mi(Fa),pc(C?Fa/C:0)+' do contratado')}${kpi('Saldo a faturar',mi(C-Fa))}</div></div>
   <div class="card"><h3>Serviços mensais: curva ABC (3 maiores = ${(top3/tot*100).toFixed(0)}%)</h3><div class="cv"><canvas id="r1"></canvas></div></div>`;
-  mk('r0','doughnut',{labels:['Incorrido','A incorrer','Saldo orçado'],datasets:[{data:[inc,ain,sal],backgroundColor:['#0a3d8f','#5aa2ff','#a9cdfa'],borderWidth:0}]},{plugins:{legend:{position:'bottom'}},responsive:true,maintainAspectRatio:false});
+  mk('r0','doughnut',{labels:['Incorrido','A incorrer','Saldo orçado'],datasets:[{data:[inc,ain,sal],backgroundColor:['#0a3d8f','#5aa2ff','#9fc4f4'],borderWidth:0}]},{plugins:{legend:{position:'bottom'}},responsive:true,maintainAspectRatio:false});
   mk('r3','bar',{labels:gl.map(x=>short(x[0])),datasets:[{label:'Contratado',data:gl.map(x=>x[1][0]),backgroundColor:'#5aa2ff',borderRadius:4},{label:'Faturado',data:gl.map(x=>x[1][1]),backgroundColor:'#0a3d8f',borderRadius:4}]},{responsive:true,maintainAspectRatio:false});
   let c=0;mk('r1','bar',{labels:g.map(x=>short(x[0])),datasets:[{type:'line',label:'% acumulado',data:g.map(x=>+((c+=x[1])/tot*100).toFixed(1)),borderColor:'#0a3d8f',backgroundColor:'#0a3d8f',yAxisID:'y1',tension:0.2},{label:'Valor',data:g.map(x=>x[1]),backgroundColor:'#8cc0ff',borderRadius:4}]},{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{y:{ticks:{callback:v=>BRL(v)}} , y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}}});
 }
@@ -177,41 +177,77 @@ const findHeaderIndex = (headers, aliases) => {
 async function load(){
   const sub=document.getElementById('sub');
   try{
-    const[a,b,c]=await Promise.all([tab('CONTRATOS PRESTAÇÃO DE SERVIÇO'),tab('CONTRATOS DE EXECUÇÃO DE OBRAS'),tab('RESUMO GERAL')]);
-    const hi=a.findIndex(r=>/centro de custo/i.test(r[0]));
-    const rows=a.slice(hi+1).filter(r=>r[0]&&r[0].trim()&&!isNaN(num(r[2]))).map(r=>({"CENTRO DE CUSTO":r[0].trim(),"DISCIPLINA":r[1],"CUSTO MENSAL":num(r[2])}));
-    const eh=b.findIndex(r=>r.some(x=>/empresa contratada/i.test(x) || /empresa/i.test(x))),H=b[eh].map(x=>String(x||'').trim());
-    if (eh < 0) throw new Error('Cabecalho da planilha de execução não encontrado');
+    const [a,b,c] = await Promise.all([
+      tab('CONTRATOS PRESTAÇÃO DE SERVIÇO'),
+      tab('CONTRATOS DE EXECUÇÃO DE OBRAS'),
+      tab('RESUMO GERAL')
+    ]);
+
+    const hi = a.findIndex(r => /centro de custo/i.test(String(r[0] || '')));
+    if (hi < 0) throw new Error('Cabeçalho de serviços não encontrado');
+    const rows = a.slice(hi + 1)
+      .filter(r => String(r[0] || '').trim() && !isNaN(num(r[2])))
+      .map(r => ({
+        'CENTRO DE CUSTO': String(r[0]).trim(),
+        'DISCIPLINA': r[1],
+        'CUSTO MENSAL': num(r[2])
+      }));
+
+    const eh = b.findIndex(r => r.some(x => /empresa contratada/i.test(String(x || '')) || /empresa/i.test(String(x || '')) ));
+    if (eh < 0) throw new Error('Cabeçalho da aba de execução não encontrado');
+
+    const H = b[eh].map(x => String(x || '').trim());
     const idx = {
-      empresa: findHeaderIndex(H,['EMPRESA CONTRATADA','EMPRESA','CONTRATADA','NOME EMPRESA']),
-      disciplina: findHeaderIndex(H,['DISCIPLINA','DISCIPLINA DE EXECUÇÃO']),
-      numero: findHeaderIndex(H,['NUMERO','NÚMERO','NRO','NUMERO CONTRATO','CONTRATO']),
-      objeto: findHeaderIndex(H,['OBJETO','DESCRICAO OBJETO','DESCRIÇÃO DO OBJETO']),
-      valorContratado: findHeaderIndex(H,['VALOR CONTRATADO','CONTRATADO','VALOR ORCADO','VALOR TOTAL CONTRATADO']),
-      valorFaturado: findHeaderIndex(H,['VALOR FATURADO','VALOR FATURADO ACUMULADO','FATURADO','FATURADO ACUMULADO']),
-      previsto: findHeaderIndex(H,['PREVISTO','VALOR PREVISTO','PREVISTO ACUMULADO'])
+      empresa: findHeaderIndex(H, ['EMPRESA CONTRATADA', 'EMPRESA', 'CONTRATADA', 'NOME EMPRESA']),
+      disciplina: findHeaderIndex(H, ['DISCIPLINA', 'DISCIPLINA DE EXECUÇÃO']),
+      numero: findHeaderIndex(H, ['NUMERO', 'NÚMERO', 'NRO', 'NUMERO CONTRATO', 'CONTRATO']),
+      objeto: findHeaderIndex(H, ['OBJETO', 'DESCRICAO OBJETO', 'DESCRIÇÃO DO OBJETO', 'OBJETO CONTRATADO']),
+      valorContratado: findHeaderIndex(H, ['VALOR CONTRATADO', 'CONTRATADO', 'VALOR ORCADO', 'VALOR TOTAL CONTRATADO']),
+      valorFaturado: findHeaderIndex(H, ['VALOR FATURADO', 'VALOR FATURADO ACUMULADO', 'FATURADO', 'FATURADO ACUMULADO'])
     };
-    const pv = H.map((x,i)=>x==='PREVISTO'?i:-1).filter(i=>i>=0), ml = pv.map((p,i)=>lbl(b[eh-1]&&b[eh-1][p],i));
-    const ex = b.slice(eh+1).filter(r=>{const empresa = r[idx.empresa] || ''; return String(empresa).trim() !== '';}).map(r=>({
-      d: String(r[idx.disciplina] || '').trim(),
-      c: String(r[idx.numero] || '').trim(),
-      e: String(r[idx.empresa] || '').trim(),
-      o: String(r[idx.objeto] || '').trim(),
-      v: num(r[idx.valorContratado]),
-      f: num(r[idx.valorFaturado]),
-      k: [[0,0],[0,0],[0,0],[0,0]]
-    }));
-    const rs = c.filter(r=>/^(?:\(|\[)?(?:\+|-|=)(?:\)|\])?$/.test((r[3]||'').trim())).map(r=>num(r[4]));
-    if(!rows.length || !ex.length || rs.length < 4 || rs.some(isNaN)) throw new Error('formato');
-    D.svc={cols:D.svc.cols,rows};
-    EXE=ex; RES=rs; MES=ml;
+
+    if (idx.empresa < 0 || idx.valorFaturado < 0 || idx.valorContratado < 0) {
+      throw new Error('Não localizou as colunas de contrato/faturamento na planilha');
+    }
+
+    const ex = b.slice(eh + 1)
+      .filter(r => String(r[idx.empresa] || '').trim() !== '')
+      .map(r => ({
+        d: String(r[idx.disciplina] || '').trim(),
+        c: String(r[idx.numero] || '').trim(),
+        e: String(r[idx.empresa] || '').trim(),
+        o: String(r[idx.objeto] || '').trim(),
+        v: num(r[idx.valorContratado]),
+        f: num(r[idx.valorFaturado]),
+        k: [[0,0],[0,0],[0,0],[0,0]]
+      }));
+
+    const pv = H.map((x,i)=>x==='PREVISTO'?i:-1).filter(i=>i>=0);
+    const ml = pv.map((p,i)=>lbl(b[eh-1] && b[eh-1][p], i));
+
+    const rs = c
+      .filter(r => /^(?:\(|\[)?(?:\+|-|=)(?:\)|\])?$/.test((r[3] || '').trim()))
+      .map(r => num(r[4]));
+
+    if(!rows.length || !ex.length || rs.length < 4 || rs.some(isNaN)) {
+      throw new Error('Estrutura da planilha incompatível com o parser');
+    }
+
+    D.svc = { cols: D.svc.cols, rows };
+    EXE = ex;
+    RES = rs;
+    MES = ml;
     all();
-    sub.textContent='Dados da planilha · atualizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+    sub.textContent = 'Dados da planilha · atualizado às ' + new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   } catch (e) {
-    sub.textContent='Sem conexão com a planilha · exibindo últimos dados salvos';
+    console.error('Erro ao carregar dados da planilha:', e);
+    sub.textContent = 'Sem conexão com a planilha · exibindo últimos dados salvos';
     renderRes();
     renderExe();
-    renderDS('svc','Serviços Mensais');
+    renderDS('svc', 'Serviços Mensais');
   }
 }
 document.getElementById('rf').onclick=load;
