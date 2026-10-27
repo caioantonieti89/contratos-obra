@@ -41,7 +41,7 @@ main{padding:14px 12px 40px}
 @media(min-width:720px){.kpis{grid-template-columns:repeat(4,1fr)}.grid2{grid-template-columns:1fr 1fr}.list{grid-template-columns:repeat(3,1fr)}.flt{grid-template-columns:repeat(4,1fr)}.flt .full{grid-column:1/-1}}
 </style></head><body>
 <header><div class="wrap">
-<div class="top"><div><h1>Gestão de Contratos da Obra</h1><p class="sub" id="sub">Orçado x realizado, contratos de execução e serviços mensais</p></div>
+<div class="top"><div><h1>Gestão de Contratos da Obra</h1><p class="sub" id="sub">Carregando dados da planilha…</p></div>
 <button class="imp" id="rf">Atualizar</button></div>
 <nav id="nav"><button data-t="res" class="on">Resumo Geral</button><button data-t="exe">Execução de Obras</button><button data-t="svc">Serviços Mensais</button></nav>
 </div></header>
@@ -61,8 +61,8 @@ const num=v=>{
   const negative = s.startsWith('(') && s.endsWith(')');
   s = s.replace(/[()]/g,'').replace(/R\$/gi,'').replace(/[%\s]/g,'');
   if(!/\d/.test(s)) return 0;
-  if(s.startsWith('-')){ s = s.slice(1); }
-  if(s.startsWith('+')){ s = s.slice(1); }
+  if(s.startsWith('-')) s = s.slice(1);
+  if(s.startsWith('+')) s = s.slice(1);
   if(s.includes(',')){
     const lastComma=s.lastIndexOf(',');
     const intPart=s.slice(0,lastComma).replace(/\./g,'');
@@ -75,19 +75,20 @@ const num=v=>{
   const n = Number(s);
   return Number.isFinite(n) ? (negative ? -n : n) : 0;
 };
-// Dados lidos da aba "Prestação de Serviço Mensal" da planilha
 const SVC0=[["ELEVADORES CREMALHEIRA - ALUGUEL","CANTEIRO",22000],["ELEVADORES CREMALHEIRA - MANUTENÇÃO","CANTEIRO",7000],["OPERADOR DE ELEVADOR","CANTEIRO",20000],["CONSULTORIA INSTALAÇÕES ELÉTRICAS","CANTEIRO",15000],["AUXILIAR ADMINISTRATIVO","CANTEIRO",12000],["SEGURANÇA PATRIMONIAL","CANTEIRO",18000],["LIMPEZA","CANTEIRO",9000],["PINTURA","CANTEIRO",25000],["LOCAÇÃO DE EQUIPAMENTOS","CANTEIRO",8000],["TRANSPORTE","CANTEIRO",14000]];
 const D={svc:{cols:["CENTRO DE CUSTO","DISCIPLINA","CUSTO MENSAL"],rows:SVC0.map(r=>({"CENTRO DE CUSTO":r[0],"DISCIPLINA":r[1],"CUSTO MENSAL":r[2]}))},exe:{cols:[],rows:[]}};
 const F={exe:{q:'',sel:{},min:0},svc:{q:'',sel:{},min:0}};let CH={};
+let EXE=[]; let RES=[0,0,0,0]; let MES=[];
 const money=c=>!/%|perc|avan|andam|qtd|quant|^n[ºo°]|prazo|dias/i.test(c);
 const fmt=(c,v)=>money(c)?BRL(v):v.toLocaleString('pt-BR',{maximumFractionDigits:2})+(/%|perc|avan|andam/i.test(c)&&v<=1?'':'');
 function meta(k){const d=D[k];const nc=d.cols.filter(c=>d.rows.some(r=>r[c]!==''&&r[c]!=null)&&d.rows.every(r=>r[c]===''||r[c]==null||!isNaN(num(r[c]))));return{nc,tc:d.cols.filter(c=>!nc.includes(c))};}
 function mk(id,type,data,opt){if(CH[id])CH[id].destroy();const el=document.getElementById(id);if(!el)return;Chart.defaults.color=getComputedStyle(document.documentElement).getPropertyValue('--mut');Chart.defaults.font.family='system-ui';CH[id]=new Chart(el,{type,data,options:opt});}
 const short=s=>String(s).length>26?String(s).slice(0,24)+'…':s;
 function group(rows,lc,vc,top){const m={};rows.forEach(r=>{const k=r[lc]||'—';m[k]=(m[k]||0)+num(r[vc])});let a=Object.entries(m).sort((x,y)=>y[1]-x[1]);if(top&&a.length>top){const o=a.slice(top);return a.slice(0,top).concat([['Outros',o.reduce((s,[,v])=>s+v,0)]]);}return a;}
+function renderEmptyState(id,msg){const p=document.getElementById(id);if(p){p.innerHTML=`<div class="card empty">${msg}</div>`;}}
 function renderDS(k,title){
   const p=document.getElementById('p-'+k),d=D[k];
-  if(!d.rows.length){p.innerHTML='<div class="card empty"><b>Sem dados nesta aba ainda.</b><br>Use <b>Importar planilha</b> (botão no topo) e selecione o arquivo .xlsx completo para carregar '+title+'.</div>';return}
+  if(!d.rows.length){renderEmptyState('p-'+k,'<b>Sem dados nesta aba ainda.</b><br>Use <b>Atualizar</b> para carregar os dados da planilha.');return;}
   const{nc,tc}=meta(k),f=F[k],lc=tc[0]||d.cols[0],vc=nc[0];
   const sels=tc.filter(c=>{const s=new Set(d.rows.map(r=>r[c]));return s.size>1&&s.size<=30}).slice(0,3);
   if(!p.dataset.ok){p.dataset.ok=1;
@@ -95,7 +96,8 @@ function renderDS(k,title){
    p.querySelector('#q-'+k).oninput=e=>{f.q=e.target.value.toLowerCase();body(k)};
    sels.forEach(c=>p.querySelector(`[id="s-${k}-${c}"]`).onchange=e=>{f.sel[c]=e.target.value;body(k)});
    const m=p.querySelector('#m-'+k);if(m)m.oninput=e=>{f.min=Number(e.target.value)||0;body(k)}}
-  body(k)}
+  body(k)
+}
 function body(k){
   const d=D[k],{nc,tc}=meta(k),f=F[k],lc=tc[0]||d.cols[0],vc=nc[0];
   const rows=d.rows.filter(r=>(!f.q||Object.values(r).join(' ').toLowerCase().includes(f.q))&&Object.entries(f.sel).every(([c,v])=>!v||r[c]===v)&&(!vc||!f.min||num(r[vc])>=f.min));
@@ -111,8 +113,6 @@ function body(k){
   <div class="list">${rows.slice().sort((a,b)=>(num(b[vc])||0)-(num(a[vc])||0)).map(r=>`<div class="it"><h4>${r[lc]||'—'}</h4>${vc?`<div class="v">${fmt(vc,num(r[vc])||0)}</div><div class="bar"><i style="width:${((num(r[vc])||0)/mx*100).toFixed(1)}%"></i></div>`:''}<div class="f"><span>${vc||lc}</span><span>${vc?fmt(vc,num(r[vc])||0):''}</span></div></div>`).join('')}</div>`;
   if(vc){const g=group(rows,lc,vc,12);mk('c1-'+k,'bar',{labels:g.map(x=>short(x[0])),datasets:[{data:g.map(x=>x[1]),backgroundColor:'#1f7ae0',borderRadius:4}]},{indexAxis:'y',plugins:{legend:{display:false}},responsive:true,maintainAspectRatio:false});
    const g2=group(rows,lc,vc,6);mk('c2-'+k,'doughnut',{labels:g2.map(x=>short(x[0])),datasets:[{data:g2.map(x=>x[1]),backgroundColor:PAL,borderWidth:0}]},{plugins:{legend:{position:'bottom',labels:{boxWidth:10}}},responsive:true,maintainAspectRatio:false}})}
-
-let EXE=[{"d":"ESTRUTURA","c":"CT M0500/24","e":"MTECH PREMOLDADOS PROTENDIDOS LTDA","o":"ESTRUTURA PRE MOLDADA","v":41800000.0,"f":40297944.09,"k":[[0,0],[0,0],[0,0],[0,0]]},{"d":"FUNDAÇÃO","c":"CT F0100/24","e":"ABC CONSTRUÇÕES LTDA","o":"FUNDAÇÃO","v":24300000.0,"f":10000000.0,"k":[[0,0],[0,0],[0,0],[0,0]]}];
 const mi=v=>'R$ '+(v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' mi';
 const pc=v=>(v*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
 const sumb=(a,k)=>a.reduce((s,r)=>s+r[k],0);
@@ -120,7 +120,9 @@ const kpi=(t,v,s)=>`<div class="kpi"><small>${t}</small><b>${v}</b>${s?`<small>$
 const FE={q:'',d:'',e:'',s:''};
 const stat=r=>{const p=r.v?r.f/r.v:0;return p===0?'Sem faturamento':p<.5?'Até 50%':p<.95?'De 50% a 95%':'Acima de 95%'};
 function renderRes(){
-  const p=document.getElementById('p-res'),sm=meta('svc'),sv=sm.nc[0],lc=sm.tc[0],tot=D.svc.rows.reduce((a,r)=>a+num(r[sv]),0);
+  const p=document.getElementById('p-res');
+  if(!Array.isArray(RES) || RES.length < 4){renderEmptyState('p-res','Carregando dados da planilha…');return;}
+  const sm=meta('svc'),sv=sm.nc[0],lc=sm.tc[0],tot=D.svc.rows.reduce((a,r)=>a+num(r[sv]),0);
   const g=group(D.svc.rows,lc,sv),top3=g.slice(0,3).reduce((a,x)=>a+x[1],0),[orc,inc,ain,sal]=RES,C=sumb(EXE,'v'),Fa=sumb(EXE,'f');
   const gd={};EXE.forEach(r=>{gd[r.d]=gd[r.d]||[0,0];gd[r.d][0]+=r.v;gd[r.d][1]+=r.f});const gl=Object.entries(gd).sort((a,b)=>b[1][0]-a[1][0]).slice(0,10);
   p.innerHTML=`<div class="card"><h3>Orçado x realizado da obra</h3><div class="kpis" style="margin:0">${kpi('Orçamento total',mi(orc))}${kpi('Custo incorrido',mi(inc),pc(inc/orc)+' do orçamento')}${kpi('A incorrer',mi(ain),pc(ain/orc)+' do orçamento')}${kpi('Saldo orçado',mi(sal),pc(sal/orc)+' do orçamento')}</div></div>
@@ -133,12 +135,14 @@ function renderRes(){
   let c=0;mk('r1','bar',{labels:g.map(x=>short(x[0])),datasets:[{type:'line',label:'% acumulado',data:g.map(x=>+((c+=x[1])/tot*100).toFixed(1)),borderColor:'#0a3d8f',backgroundColor:'#0a3d8f',yAxisID:'y1',tension:0.2},{label:'Valor',data:g.map(x=>x[1]),backgroundColor:'#8cc0ff',borderRadius:4}]},{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{y:{ticks:{callback:v=>BRL(v)}} , y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%'}}}});
 }
 function renderExe(){
-  const p=document.getElementById('p-exe'),opt=k=>[...new Set(EXE.map(r=>r[k]))].sort().map(v=>`<option>${v}</option>`).join('');
+  const p=document.getElementById('p-exe');
+  if(!Array.isArray(EXE) || EXE.length === 0){renderEmptyState('p-exe','Carregando dados dos contratos…');return;}
+  const opt=k=>[...new Set(EXE.map(r=>r[k]))].sort().map(v=>`<option>${v}</option>`).join('');
   if(!p.dataset.ok){p.dataset.ok=1;
    p.innerHTML=`<div class="card"><h3>Filtros</h3><div class="flt"><input class="full" id="eq" type="search" placeholder="Buscar objeto, empresa ou contrato…"><select id="ed"><option value="">Disciplina</option>${opt('d')}</select><select id="ee"><option value="">Empresa</option>${opt('e')}</select><select id="es"><option value="">Status</option><option>Sem faturamento</option><option>Até 50%</option><option>De 50% a 95%</option><option>Acima de 95%</option></select></div></div><div id="eo"></div>`;
    [['eq','q','oninput'],['ed','d','onchange'],['ee','e','onchange'],['es','s','onchange']].forEach(([id,k,ev])=>p.querySelector('#'+id)[ev]=e=>{FE[k]=k==='q'?e.target.value.toLowerCase():e.target.value;bodyExe()});
   }
-  bodyExe()
+  bodyExe();
 }
 function bodyExe(){
   const R=EXE.filter(r=>(!FE.q||(r.o+r.e+r.c+r.d).toLowerCase().includes(FE.q))&&(!FE.d||r.d===FE.d)&&(!FE.e||r.e===FE.e)&&(!FE.s||stat(r)===FE.s)),o=document.getElementById('eo');
@@ -172,35 +176,47 @@ const findHeaderIndex = (headers, aliases) => {
 };
 async function load(){
   const sub=document.getElementById('sub');
-  try{const[a,b,c]=await Promise.all([tab('CONTRATOS PRESTAÇÃO DE SERVIÇO'),tab('CONTRATOS DE EXECUÇÃO DE OBRAS'),tab('RESUMO GERAL')]);
-   const hi=a.findIndex(r=>/centro de custo/i.test(r[0]));
-   const rows=a.slice(hi+1).filter(r=>r[0]&&r[0].trim()&&!isNaN(num(r[2]))).map(r=>({"CENTRO DE CUSTO":r[0].trim(),"DISCIPLINA":r[1],"CUSTO MENSAL":num(r[2])}));
-   const eh=b.findIndex(r=>r.some(x=>/empresa contratada/i.test(x) || /empresa/i.test(x))),H=b[eh].map(x=>String(x||'').trim());
-   if (eh < 0) throw new Error('Cabecalho da planilha de execução não encontrado');
-   const idx = {
-     empresa: findHeaderIndex(H,['EMPRESA CONTRATADA','EMPRESA','CONTRATADA','NOME EMPRESA']),
-     disciplina: findHeaderIndex(H,['DISCIPLINA','DISCIPLINA DE EXECUÇÃO']),
-     numero: findHeaderIndex(H,['NUMERO','NÚMERO','NRO','NUMERO CONTRATO','CONTRATO']),
-     objeto: findHeaderIndex(H,['OBJETO','DESCRICAO OBJETO','DESCRIÇÃO DO OBJETO']),
-     valorContratado: findHeaderIndex(H,['VALOR CONTRATADO','CONTRATADO','VALOR ORCADO','VALOR TOTAL CONTRATADO']),
-     valorFaturado: findHeaderIndex(H,['VALOR FATURADO','VALOR FATURADO ACUMULADO','FATURADO','FATURADO ACUMULADO']),
-     previsto: findHeaderIndex(H,['PREVISTO','VALOR PREVISTO','PREVISTO ACUMULADO'])
-   };
-   const ex=b.slice(eh+1).filter(r=>{const empresa = r[idx.empresa] || ''; return String(empresa).trim() !== '';}).map(r=>({
-     d: String(r[idx.disciplina] || '').trim(),
-     c: String(r[idx.numero] || '').trim(),
-     e: String(r[idx.empresa] || '').trim(),
-     o: String(r[idx.objeto] || '').trim(),
-     v: num(r[idx.valorContratado]),
-     f: num(r[idx.valorFaturado]),
-     k: [[0,0],[0,0],[0,0],[0,0]]
-   }));
-   const rs=c.filter(r=>/^(?:\(|\[)?(?:\+|-|=)(?:\)|\])?$/.test((r[3]||'').trim())).map(r=>num(r[4]));
-   if(!rows.length||!ex.length||rs.length<4||rs.some(isNaN))throw new Error('formato');
-   D.svc={cols:D.svc.cols,rows};EXE=ex;RES=rs;MES=ml;all();
-   sub.textContent='Dados da planilha · atualizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}
-  catch(e){sub.textContent='Sem conexão com a planilha · exibindo últimos dados salvos'}}
- document.getElementById('rf').onclick=load;
- document.getElementById('nav').onclick=e=>{const t=e.target.dataset.t;if(!t)return;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b===e.target));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+t));};
- all();load();setInterval(load,300000);
+  try{
+    const[a,b,c]=await Promise.all([tab('CONTRATOS PRESTAÇÃO DE SERVIÇO'),tab('CONTRATOS DE EXECUÇÃO DE OBRAS'),tab('RESUMO GERAL')]);
+    const hi=a.findIndex(r=>/centro de custo/i.test(r[0]));
+    const rows=a.slice(hi+1).filter(r=>r[0]&&r[0].trim()&&!isNaN(num(r[2]))).map(r=>({"CENTRO DE CUSTO":r[0].trim(),"DISCIPLINA":r[1],"CUSTO MENSAL":num(r[2])}));
+    const eh=b.findIndex(r=>r.some(x=>/empresa contratada/i.test(x) || /empresa/i.test(x))),H=b[eh].map(x=>String(x||'').trim());
+    if (eh < 0) throw new Error('Cabecalho da planilha de execução não encontrado');
+    const idx = {
+      empresa: findHeaderIndex(H,['EMPRESA CONTRATADA','EMPRESA','CONTRATADA','NOME EMPRESA']),
+      disciplina: findHeaderIndex(H,['DISCIPLINA','DISCIPLINA DE EXECUÇÃO']),
+      numero: findHeaderIndex(H,['NUMERO','NÚMERO','NRO','NUMERO CONTRATO','CONTRATO']),
+      objeto: findHeaderIndex(H,['OBJETO','DESCRICAO OBJETO','DESCRIÇÃO DO OBJETO']),
+      valorContratado: findHeaderIndex(H,['VALOR CONTRATADO','CONTRATADO','VALOR ORCADO','VALOR TOTAL CONTRATADO']),
+      valorFaturado: findHeaderIndex(H,['VALOR FATURADO','VALOR FATURADO ACUMULADO','FATURADO','FATURADO ACUMULADO']),
+      previsto: findHeaderIndex(H,['PREVISTO','VALOR PREVISTO','PREVISTO ACUMULADO'])
+    };
+    const pv = H.map((x,i)=>x==='PREVISTO'?i:-1).filter(i=>i>=0), ml = pv.map((p,i)=>lbl(b[eh-1]&&b[eh-1][p],i));
+    const ex = b.slice(eh+1).filter(r=>{const empresa = r[idx.empresa] || ''; return String(empresa).trim() !== '';}).map(r=>({
+      d: String(r[idx.disciplina] || '').trim(),
+      c: String(r[idx.numero] || '').trim(),
+      e: String(r[idx.empresa] || '').trim(),
+      o: String(r[idx.objeto] || '').trim(),
+      v: num(r[idx.valorContratado]),
+      f: num(r[idx.valorFaturado]),
+      k: [[0,0],[0,0],[0,0],[0,0]]
+    }));
+    const rs = c.filter(r=>/^(?:\(|\[)?(?:\+|-|=)(?:\)|\])?$/.test((r[3]||'').trim())).map(r=>num(r[4]));
+    if(!rows.length || !ex.length || rs.length < 4 || rs.some(isNaN)) throw new Error('formato');
+    D.svc={cols:D.svc.cols,rows};
+    EXE=ex; RES=rs; MES=ml;
+    all();
+    sub.textContent='Dados da planilha · atualizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+  } catch (e) {
+    sub.textContent='Sem conexão com a planilha · exibindo últimos dados salvos';
+    renderRes();
+    renderExe();
+    renderDS('svc','Serviços Mensais');
+  }
+}
+document.getElementById('rf').onclick=load;
+document.getElementById('nav').onclick=e=>{const t=e.target.dataset.t;if(!t)return;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b===e.target));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+t));};
+all();
+load();
+setInterval(load,300000);
 </script></body></html>
